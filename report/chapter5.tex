@@ -1,0 +1,127 @@
+\chapter{Network}
+In this chapter, we use use two identical machines in LAN, with switch bandwidth about 1000Mb/s.
+
+\section{Round trip time}
+In this part, we try to measure the round trip time.
+
+\paragraph{Methodology}
+Our method is very simple, it's just like an echo server. Client send one byte to server, when server received the message then send back the message, then client receive it;
+Before client send message, we record current cycle time; After client receive message, we record it again. We iterate this procedure for 1000 times and get the average result.
+
+
+\paragraph{Predictions}
+Our predictions exclude the factor of building connection. So for loopback and remote interface, the biggest difference is send and receive data.
+For Ping program, we know that if use ICMP packet so it will get more accurate results. Because the ICMP requests are handled at the kernel level on the Linux side this will avoid two context switches.
+
+Following is the Ping result.
+\begin{center}
+\begin{tabular}{l*{6}{c}r}
+Operation       &  RTT \\
+\hline
+loopback & 0.070ms & 161000 cycles\\
+remote & 0.196ms &  450800 cycles\\
+\end{tabular}
+\end{center}
+
+Based on Ping results, we made our predictions.
+
+For loopback interface. We expect the hardware overhead is 0.03ms, software overhead is 0.05ms.
+
+For remote interface. We expect the hardware overhead is 0.2ms, software overhead is 0.05ms..
+
+\paragraph{Results}
+We present our measured results.
+
+\begin{center}
+\begin{tabular}{| p{2cm} | p{3cm} | p{3cm} | p{2cm} | p{2cm} | p{2cm}}
+Operation   & Base Hardware Performance  & Estimated Software Overhead  & Predicted Time  & Measured Time  & Std \\
+\hline
+Loopback  & 0.03 ms& 0.05 ms& 0.08 ms & 0.04ms & 0.00725ms \\
+Remote  & 0.2 ms& 0.05 ms & 0.25 ms & 0.27ms & 0.05ms \\ 
+\end{tabular}
+\end{center}
+
+\paragraph{Discussion}
+The overhead of network communication is large. Because TCP/IP protocol is implemented in kernel, so even the loopback results are a little slow for RTT. 
+
+One weird thing is that for loopback interface, ICMP protocol is slower than TCP/IP protocol. It is weird that RTT measured by ICMP is longer than that measured by TCP/IP. One possible reason is that Ping program may did not use RDTSC instruction to measure time, losing some precision. \\
+
+What can you deduce about baseline network performance and the overhead of OS software?  \\
+In this experiment we only transfer several bytes of data. In the next experiment, we will go deep into the network performance and the overhead of OS software. Because bandwidth benchmark will reveal more about this. \\
+
+How close to ideal hardware performance do you achieve? \\
+It is far short of the ideal hardware performance because of the TCP/IP overhead.\\
+
+
+What are reasons why the TCP performance does not match ideal hardware performance?  \\
+First of all, normal TCP/IP protocols are implemented in kernel, so it is time-consuming to do context switch;
+Secondly, We know there are many network stacks, from link layer to TCP/IP stacks;
+Moreover, it is expensive to establish TCP connection, which will spend much time on handshake(like ACKs) to make sure the connection is reliable.
+
+\section{Peak bandwidth}
+In this part, we try to explore peak bandwidth.
+
+\paragraph{Methodology}
+The code is very similar to the previous experiment.
+
+In this experiment, when we establish the connection, the client will send some data to the server and the server will receive this chunk of data. The size of data is a parameter. We have tried use different chunk sizes,  from 1MB to 64MB. The result is pretty similar. We add MSG\_WAITALL flag to recv() function. Because recv will immediately return if it detect there are some data in the buffer. So we add this flag to let recv() return if and only if it has received all the data.
+
+We repeat this procedure 100 times and choose the maximum result as our peak bandwidth.
+
+\paragraph{Predictions}
+For the loopback device, the bottleneck will be the bandwidth of the RAM. Based on previous measured memory bandwidth : 8754MB/s, plus send and recv overhead, we predict the loopback peak bandwidth is about half of the measured memory bandwidth, that is about 4000 MB/s.
+
+The network switch in my experiment is switching at the speed of 1000Mb/s, which is about 125MB/s. We except the switch to be the bottleneck. Considering TCP overhead, we decrease our prediction to 120MB/s.
+
+\paragraph{Results}
+We present our measured results.
+
+\begin{center}
+\begin{tabular}{l*{6}{c}r}
+Operation       &  Predicted Speed& Measured Speed & Std\\
+\hline
+Loopback Peak Bandwidth & 4000 MB/s & 3328.38 MB/s & 132.65 MB/s\\
+Remote Peak Bandwidth & 120 MB/s  & 114.82 MB/s & 2.72 MB/s\\
+\end{tabular}
+\end{center}
+
+
+\paragraph{Discussion}
+Our predictions are very close to the measured results. For loopback interface, the bandwidth speed is in the range [3GB/s, 4GB/s]; For remote interface, the speed is close to the switch bandwidth.
+
+We also think the bandwidth can be influenced by many factors. For example, if the two machine are far from each other, then the route path is undecidable and the bandwidth will be influenced. \\
+
+How close to ideal hardware performance do you achieve? \\
+It is close to the hardware performance due to the perfect experiment environment.
+
+\section{Connection overhead}
+In this part, we try to explore connection overhead.
+
+\paragraph{Methodology}
+In this experiment, the client will connect to both the remote server and to the loopback interface 1000 times and we calculate the average.
+We read the clock time before and after the corresponding system call and get the clock cycles.
+
+\paragraph{Predictions}
+
+Based on previous experience on RTT experiment and the network topology, we think  it would be 3-5 times higher than loopback interface. As for connection tear-down, we expect there is no big difference from connection setup.
+
+Because TCP is a 3 way handshake protocol, we expect it is about 1.5-2.5 times of RTT.
+
+\paragraph{Results}
+We present our measured results.
+
+\begin{center}
+\begin{tabular}{| p{3cm} | p{3cm} | p{3cm} | p{2cm} | p{2cm} | p{2cm}}
+Operation  & Base Hardware Performance  & Estimated Software Overhead  & Predicted Time  & Measured Time  & Std \\
+\hline
+Loopback Connection Setup & 0.0696ms & 0.0217ms & 0.0913ms & 0.133ms & 0.0112ms \\
+Loopback Connection Tear-down & 0.0696ms & 0.0217ms & 0.0913ms & 0.0236ms & 0.0035ms \\
+Remote Connection Setup & 0.391ms & 0.0217ms & 0.413ms & 0.271ms & 0.0179ms \\
+Remote Connection Tear-down & 0.391ms & 0.0217ms & 0.413ms & 0.0614ms & 0.0048ms \\
+\end{tabular}
+\end{center}
+
+
+\paragraph{Discussion}
+Our predictions of connection tear-down are much higher than the measured results. It is very strange that it is so cheap to close the connection.
+My guess is that maybe close works in asynchronous way.
